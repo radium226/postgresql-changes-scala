@@ -34,5 +34,5 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Dependencies.slf4j,
     // scodec
     libraryDependencies ++= Dependencies.scodec,
-    Compile / mainClass := Some("radium226.changes.Main"),
+    Compile / mainClass := Some("radium226.changes.example.Main"),
   )
