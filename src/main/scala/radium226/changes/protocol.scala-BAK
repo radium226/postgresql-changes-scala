@@ -1,0 +1,27 @@
+package radium226.changes
+
+import scodec._
+import scodec.bits._
+import scodec.codecs._
+import scodec.codecs.implicits._
+
+import cats._
+import cats.implicits._
+import java.time.LocalDateTime
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.time.LocalDate
+import java.time.Duration
+import java.time.LocalTime
+import java.time.ZonedDateTime
+import java.time.ZoneId
+import radium226.changes.Update.Submessage
+import shapeless.Tuple
+
+
+
+object codecs {
+
+    
+
+}
