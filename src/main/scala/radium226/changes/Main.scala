@@ -15,9 +15,10 @@ import scodec.codecs._
 import scodec.stream._
 import scodec.bits._
 
-import parser.instances._
+import radium226.changes.pgoutput.reader.instances._
 
 import radium226.changes.pgoutput.protocol._
+
 
 // https://www.postgresql.org/docs/12/protocol-logicalrep-message-formats.html
 object Main extends IOApp {
@@ -29,7 +30,7 @@ object Main extends IOApp {
                     .split(_ == '\n')
                     .map(_.toBitVector)
                     .map({ bitVector => Codec[Message].decodeValue(bitVector) })
-                    .evalTap({
+                    /*.evalTap({
                         case Attempt.Successful(Message.Insert(_, TupleData(values))) =>
                             values
                                 .traverse({
@@ -43,11 +44,15 @@ object Main extends IOApp {
 
                         case _ =>
                             IO.unit
-                     })
+                    })
                     .evalTap({ attempt => 
                         IO(println(attempt)) 
+                    })*/
+                    .collect({
+                        case Attempt.Successful(message) =>
+                            message
                     })
-                    .through(UpdatedValue[IO].of[Person])
+                    .through(Capture[Person].pipe[IO])
                     .evalTap({ k => IO(println(k)) })
                     .compile
                     .drain
