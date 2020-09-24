@@ -16,10 +16,12 @@ object Message {
 
     case class Begin(lsn: LogSequenceNumber, commitInstant: Instant, xid: TransactionID) extends Message
 
-    case class Commit(flags: Flags, commitLSN: LogSequenceNumber, transactionEndLSN: LogSequenceNumber, commitTimestamp: Instant) extends Message
+    case class Commit(commitLSN: LogSequenceNumber, transactionEndLSN: LogSequenceNumber, commitTimestamp: Instant) extends Message
 
     case class Insert(relationID: RelationID, tupleData: TupleData) extends Message
 
     case class Update(relationID: RelationID, submessage: Submessage, newTupleData: TupleData) extends Message
+
+    case class Relation(id: RelationID, namespace: String, name: String, replicaIdentitySetting: Int, columns: List[Column]) extends Message
 
 }

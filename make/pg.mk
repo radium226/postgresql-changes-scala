@@ -43,7 +43,7 @@ pg-test:
 		-h "localhost" \
 		-p 5432 \
 		--slot=my_slot \
-		--file=- \
+		--file="pgoutput.bin" \
 		--no-loop \
 		--option=proto_version=1 \
 		--option=publication_names=my_publication \

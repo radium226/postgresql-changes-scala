@@ -1,66 +1,38 @@
 package radium226.changes.example
 
-import cats._
 import cats.effect._
 
-import cats.implicits._
-import cats.effect.implicits._
-
-import fs2._
-import fs2.io.file._
-
-import java.nio.file.Paths
-
-import scodec._
-import scodec.codecs._
-import scodec.stream._
-import scodec.bits._
-
-import radium226.changes.Capture
+import radium226.changes.pgoutput.{Capture, CaptureConfig}
+import radium226.changes.Change
 import radium226.changes.pgoutput.reader.instances._
-import radium226.changes.pgoutput.protocol._
 
 
 // https://www.postgresql.org/docs/12/protocol-logicalrep-message-formats.html
 object Main extends IOApp {
 
     override def run(args: List[String]): IO[ExitCode] = {
-        Blocker[IO]
-            .use({ blocker =>
-                readAll[IO](Paths.get("./pgoutput.bin"), blocker, 128)
-                    .split(_ == '\n')
-                    .map(_.toBitVector)
-                    .map({ bitVector => 
-                        Codec[Message].decodeValue(bitVector) 
-                    })
-                    /*.evalTap({
-                        case Attempt.Successful(Message.Insert(_, TupleData(values))) =>
-                            values
-                                .traverse({
-                                    case Value.Text(byteVector) =>
-                                        IO(println(new String(byteVector.toArray)))
+      val config = CaptureConfig(
+        user = "postgres",
+        password = "postgres",
+        database = "postgres",
+        host = "localhost",
+        port = 5432,
+        slot = "my_slot",
+        publications = List("my_publication")
+      )
 
-                                    case _ =>
-                                        IO.unit
-                                })
-                                .void
-
-                        case _ =>
-                            IO.unit
-                    })
-                    .evalTap({ attempt => 
-                        IO(println(attempt)) 
-                    })*/
-                    .collect({
-                        case Attempt.Successful(message) =>
-                            message
-                    })
-                    .through(Capture[Person].pipe[IO])
-                    .evalTap({ k => IO(println(k)) })
-                    .compile
-                    .drain
-            })
-            .as(ExitCode.Success)
+      Capture
+        .capture[IO, Person](config)
+        .collect({
+          case Change.Insert(person) =>
+            person
+        })
+        .evalTap({ person =>
+          IO(println(person))
+        })
+        .compile
+        .drain
+        .as(ExitCode.Success)
     }
 
 }

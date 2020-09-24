@@ -5,10 +5,8 @@ import scodec._
 import scodec.bits._
 import scodec.codecs._
 import scodec.codecs.implicits._
-
 import cats._
 import cats.implicits._
-
 import java.time.LocalDateTime
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -18,18 +16,22 @@ import java.time.LocalTime
 import java.time.ZonedDateTime
 import java.time.ZoneId
 
+import radium226.changes.pgoutput.protocol.Message.Relation
+
 
 package object codec {
+
+    val PostgresEpoch = LocalDateTime.of(2000, 1, 1, 0, 0, 0)
  
     val timestamp: Codec[Instant] = {
         int64.xmap[Instant](
             { long => 
                 Instant
-                    .from(ZonedDateTime.of(LocalDateTime.of(2000, 1, 1, 0, 0, 0), ZoneId.systemDefault()))
+                    .from(ZonedDateTime.of(PostgresEpoch, ZoneId.systemDefault()))
                     .plus(Duration.of(long, ChronoUnit.MICROS)) 
             }, 
             { instant =>
-                ChronoUnit.MICROS.between(Instant.EPOCH, instant)
+                ChronoUnit.MICROS.between(PostgresEpoch, instant)
             }
         )
     }
@@ -66,9 +68,9 @@ package object codec {
     }.as[Message.Begin]
 
     val commit: Codec[Message.Commit] = {
-        ("flags" | int8) :: 
-        ("commitLSN" | int64) :: 
-        ("endTransactionLSN" | int64) :: 
+        constant(0) ::
+        ("commitLSN" | int64) ::
+        ("endTransactionLSN" | int64) ::
         ("commitTimestamp" | timestamp)
     }.as[Message.Commit]
 
@@ -85,12 +87,28 @@ package object codec {
         ("newTupleData" | tupleData)
     }.as[Message.Insert]
 
+    val column: Codec[Column] = {
+        ("flags" | int8) ::
+        ("name" | cstring) ::
+        ("dataTypeID" | int32) ::
+        ("typeModifier" | int32)
+    }.as[Column]
+
+    val relation: Codec[Relation] = {
+        ("id" | int32) ::
+        ("namespace" | cstring) ::
+        ("name" | cstring) ::
+        ("replicaIdentitySetting" | int8) ::
+        ("columns" | listOfN(int16, column))
+    }.as[Relation]
+
     val message: Codec[Message] = {
         discriminated[Message].by(byte)
             .typecase('B', begin)
             .typecase('C', commit)
             .typecase('I', insert)
             .typecase('U', update)
+            .typecase('R', relation)
     }
     
 }

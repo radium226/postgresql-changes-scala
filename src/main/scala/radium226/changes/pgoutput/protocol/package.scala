@@ -10,4 +10,8 @@ package object protocol {
 
     type RelationID = Int
 
+    type TypeModifier = Int
+
+    type DataTypeID = Int
+
 }
