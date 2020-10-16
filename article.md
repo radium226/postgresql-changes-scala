@@ -16,25 +16,29 @@ Multiple tools exists:
 * Debezium (de facto)
 
 
-# What are we going to do?
+## What are we going to do?
+In order to have a better understanding how everything works together, we're going to build a small Debezium-like library which will listen to PostgreSQL changes in Scala, using `fs2` and `scodec` in a `cats`-friendly way. 
 
-# But wait... How does it work?
 
-# A little bit of theory, first...
-## In general
+## But wait... How does it work?
 
-## Postgres specific
+### A little bit of theory, first...
+#### In general
+
+
+
+#### Postgres specific
 Since v10, Postgres allow us to...
 
 
-# Let's play with PostgreSQL
-In order to test the all things, let's use a simple `make` target to setup a Postgres instance with our current user: we forget about security, etc.
+## Let's play with PostgreSQL
+In order to test the all things, let's use a simple `make` target to setup a PostgreSQL instance with our current user: we forget about security, etc.
 
 Then, another target to populate the database
 
 Finally, another small target to simulate workloads
 
-# The `CaptureSpec` abstract class
+## The `CaptureSpec` abstract class
 In order to 
 
 ## Protocol decoding with the `scodec` library
