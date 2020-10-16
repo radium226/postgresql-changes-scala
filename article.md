@@ -1,3 +1,8 @@
+---
+title: How to make a quick'n'dirty CDC with PostgreSQL
+date: 2020-10-16
+---
+
 # How to make a quick'n'dirty CDC with PostgreSQL
 
 ## Overview
