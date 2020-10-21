@@ -25,6 +25,7 @@ In order to have a better understanding how everything works together, we're goi
 ### A little bit of theory, first...
 #### In general
 
+Coucou dd 
 
 
 #### Postgres specific
