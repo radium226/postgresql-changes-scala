@@ -3,7 +3,7 @@ package protocol
 
 import scodec.bits.ByteVector
 
-
+//<<< value-sealed-trait-definition
 sealed trait Value
 
 object Value {
@@ -15,3 +15,4 @@ object Value {
     case object Toasted extends Value
 
 }
+//>>>

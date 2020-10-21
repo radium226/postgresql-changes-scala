@@ -7,12 +7,10 @@ import java.time.Instant
 
 import radium226.changes.pgoutput.protocol.codec.message
 
-
+//<<< message-sealed-trait-definition
 sealed trait Message
 
 object Message {
-
-    implicit val codec: Codec[Message] = message
 
     case class Begin(lsn: LogSequenceNumber, commitInstant: Instant, xid: TransactionID) extends Message
 
@@ -25,3 +23,4 @@ object Message {
     case class Relation(id: RelationID, namespace: String, name: String, replicaIdentitySetting: Int, columns: List[Column]) extends Message
 
 }
+//>>>

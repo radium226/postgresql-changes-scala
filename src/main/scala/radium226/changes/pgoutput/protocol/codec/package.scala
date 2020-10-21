@@ -36,14 +36,18 @@ package object codec {
         )
     }
 
+//<<< value-codec
     val value: Codec[Value] = {
         discriminated[Value].by(byte)
             .typecase('n', provide(Value.Null))
             .typecase('u', provide(Value.Toasted))
             .typecase('t', int32.consume({ length => bytes(length) })(_.size.toInt).as[Value.Text])
     }
+//>>
 
+//<<< tuple-data-codec
     val tupleData: Codec[TupleData] = listOfN(int(16), value).hlist.as[TupleData]
+//>>>
 
     val submessage: Codec[Submessage] = {
         discriminatorFallback(
@@ -61,11 +65,13 @@ package object codec {
         })
     }
 
+//<<< begin-codec
     val begin: Codec[Message.Begin] = {
         ("lsn" | int64) ::
         ("commitInstant" | timestamp) :: 
         ("xid" | int32)  
     }.as[Message.Begin]
+//>>>
 
     val commit: Codec[Message.Commit] = {
         constant(0) ::
@@ -81,11 +87,13 @@ package object codec {
         ("newTupleData" | tupleData)
     }.as[Message.Update]
 
+//<<< insert-codec
     val insert: Codec[Message.Insert] = {
         ("relationId" | int32) ::
         constant('N') ::
         ("newTupleData" | tupleData)
     }.as[Message.Insert]
+//>>>
 
     val column: Codec[Column] = {
         ("flags" | int8) ::
@@ -102,6 +110,7 @@ package object codec {
         ("columns" | listOfN(int16, column))
     }.as[Relation]
 
+///<<< message-codec
     val message: Codec[Message] = {
         discriminated[Message].by(byte)
             .typecase('B', begin)
@@ -110,5 +119,6 @@ package object codec {
             .typecase('U', update)
             .typecase('R', relation)
     }
-    
+//>>
+
 }

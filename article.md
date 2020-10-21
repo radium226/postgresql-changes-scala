@@ -96,17 +96,64 @@ In order to
 
 ### Protocol decoding with the `scodec` library
 
-The protocol used by the logical replication is well defined [here](). We're going to use `scodec` in order to deserialize it and use it programmaticaly. First, we need to define all the classes in which we're going to map everything. 
+#### Model
 
-Basically, there is 5 kinds of messages that can be decoded that we're going to model with a `sealed trait Message`: 
-* `Begin()`
-* `Commit()`
-* `Insert()`
-* `Update()`
-* `Delete()`
+The protocol used by the logical replication is well defined [in the official PostgreSQL documentation](). As it is a binary protocol, we're going to use [the `scodec` library]() in order to decode it and allow us to use it programmaticaly. 
+
+First we need to define all the classes representing the binary data:
+
+{{< highlight sql >}}
+
+[//]: # <<< message-sealed-trait-definition >>>
+
+{{< / highlight >}}
+
+Let's ignore the `RelationID`, `LogSequenceNumber` types (as they actually are aliases for `Long` or `Int`) and focus on the `TupleData` one:
+
+{{< highlight sql >}}
+
+[//]: # <<< tuple-data-class-definition >>>
+
+[//]: # <<< value-sealed-trait-definition >>>
+
+{{< / highlight >}}
+
+It's in the `Value` type where the data lies: 
+* The `Null` case object obviousely represents SQL's `NULL`; 
+* `Toasted` is for [large columns](https://blog.gojekengineering.com/a-toast-from-postgresql-83b83d0d0683); 
+* Finally, `Text` contains an actual value serialized in a textual form.
+
+#### Codec
+
+Our model classes are ready, so now we need to find a way to parse the binary data coming from `pg_receival` to an actual `Message` instance. Using `scodec`, we do that by defining a `Codec[Message]` this way:
+
+{{< highlight scala >}}
+
+[//]: # <<< message-codec >>>
+
+{{< / highlight >}}
+
+You see that we find back the kind of messages defined above. Note that `begin` is also a `Codec`:
+
+{{< highlight scala >}}
+
+[//]: # <<< begin-codec >>>
+
+{{< / highlight >}}
+
+
 
 
 ### Mapping using the `TupleDataReader` class and the `shapeless` library
+
+Okay! Quick recap:
+* We configured PostgreSQL to let it emit changes
+* We receive the changes by directly invoking the `pg_receiwal` binary and capturing its binary output
+* We decoded the binary output to `Message` instances by using `scodec`'s `Codec`
+* In the `Message.Insert` or `Message.Update` classes, we have access to the actual inserted (or updated) data by using the `TupleData` type which is actually a `List` of `Value`
+* Among others, a `Value` may be a `Value.Text` which contains some bytes which is actually the value
+
+No, we need to find a way to transform the `Value.Text` instances to what's expected in a case class
 
 We're able to obtain all kind of `Message`s that are emitted by PostgreSQL. But what about converting them to actual case classes?
 
