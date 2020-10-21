@@ -1,3 +1,4 @@
+--<<< create-table
 CREATE TABLE
     persons (
         id SERIAL PRIMARY KEY,
@@ -7,7 +8,7 @@ CREATE TABLE
     );
 
 ALTER TABLE persons REPLICA IDENTITY FULL;
-
+-->>>
 SELECT pg_create_logical_replication_slot('my_slot', 'pgoutput');
 
 CREATE PUBLICATION my_publication FOR ALL TABLES;

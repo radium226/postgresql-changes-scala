@@ -87,6 +87,7 @@ object Capture {
       })
   }
 
+//<<< receive-method
   def receive[F[_]: Sync: ContextShift](config: CaptureConfig): Stream[F, Byte] = {
     (for {
       blocker <- Stream.resource[F, Blocker](Blocker[F])
@@ -112,6 +113,7 @@ object Capture {
       readInputStream(F.delay(process.getInputStream), 512, blocker)
     })
   }
+//>>>
 
   def capture[F[_]: Sync: ContextShift, T: TupleDataReader](config: CaptureConfig): Stream[F, Change[T]] = {
     receive[F](config)

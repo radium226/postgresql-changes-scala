@@ -36,32 +36,9 @@ Since v10, Postgres allow us to...
 Okay, let's get started! First, let's write 3 small `make` targets to run a PostgreSQL instance locally: 
 
 {{< highlight make >}}
-PGDATA := postgres
 
-## Initialize a PostgreSQL database cluster
-$(PGDATA)/PG_VERSION:
-	initdb \
-		-D "$(PGDATA)" \
-		-A "trust" \
-		-U "postgres"
+[//]: # <<< pg-targets-run >>>
 
-## Start PostgreSQL database server
-.PHONY: pg-start
-pg-start: $(PGDATA)/PG_VERSION
-	postgres \
-		-D "$(PGDATA)" \
-		-c unix_socket_directories="$(PWD)" \
-		-c wal_level="logical" \
-		-c max_replication_slots=1 
-
-## Execute a SQL file
-.PHONY: pg-run
-pg-run:
-	psql \
-		-U "postgres" \
-		-h "localhost" \
-		-p 5432 \
-		-f "$(SQL_FILE)"
 {{< / highlight >}}
 
 A few words here: 
@@ -74,18 +51,9 @@ Using this, we can now start PostgreSQL by running `make pg-start` and executing
 We're going to create a `persons` and listen to its change. Quite easy: 
 
 {{< highlight sql >}}
-CREATE TABLE
-    persons (
-        id SERIAL PRIMARY KEY,
-        firstName TEXT, 
-        lastName TEXT, 
-        tags TEXT ARRAY
-    );
 
-ALTER TABLE 
-    persons 
-REPLICA IDENTITY 
-    FULL;
+[//]: # <<< create-table >>>
+
 {{< / highlight >}}
 
 See the `REPLICA IDENTITY` property? It control the [behavior of the Logical Replication](https://www.postgresql.org/docs/13/sql-altertable.html#SQL-CREATETABLE-REPLICA-IDENTITY) of the table and may be set with the following values:
@@ -155,34 +123,20 @@ We're going to do that in 3 steps:
 
 #### Retreiving the `...`'s output
 
-Using the `fs2-io` extension, it's actually quite easy. We first have to define a small `CaptureConfig` case class which will store all the config value required to connect to the running PostgreSQL instance (`user`, `host`, `port`, etc.). 
+We first have to define a small `CaptureConfig` case class which will store all the config value required to connect to the running PostgreSQL instance (`user`, `host`, `port`, etc.). 
 
 {{< highlight scala >}}
-def receive[F[_]: Sync: ContextShift](config: CaptureConfig): Stream[F, Byte] = {
-    (for {
-      blocker <- Stream.resource[F, Blocker](Blocker[F])
-      process <- Stream.bracket[F, Process](F.delay({
-        new ProcessBuilder()
-          .command("pg_recvlogical",
-            "-d", s"${config.database}",
-            "-U", s"${config.user}",
-            "-h", s"${config.host}",
-            "-p", s"${config.port}",
-            s"--slot=${config.slot}",
-            "--file=-",
-            "--no-loop",
-            "--option=proto_version=1",
-            s"--option=publication_names=${config.publications.mkString(",")}",
-            "--plugin=pgoutput",
-            "--start")
-          .start()
-      }))({ process =>
-        F.delay(process.destroy())
-      })
-    } yield (blocker, process)).flatMap({ case (blocker, process) =>
-      readInputStream(F.delay(process.getInputStream), 512, blocker)
-    })
-  }
+
+[//]: # <<< capture-config-class >>>
+
+{{< / highlight >}}
+
+And now, using the the `fs2-io` extension, it's actually quite easy to invoke the `pg_receiva` process and capture its output.
+
+{{< highlight scala >}}
+
+[//]: # <<< receive-method >>>
+
 {{< / highlight >}}
 
 Not a lot of things to say, it's actually quite straighforward. 

@@ -1,5 +1,6 @@
 package radium226.changes.pgoutput
 
+//<<< capture-config-class
 case class CaptureConfig(
   user: String,
   password: String,
@@ -9,3 +10,4 @@ case class CaptureConfig(
   slot: String,
   publications: List[String]
 )
+//>>>
