@@ -146,16 +146,101 @@ You see that we find back the kind of messages defined above. Note that `begin` 
 
 ### Mapping using the `TupleDataReader` class and the `shapeless` library
 
-Okay! Quick recap:
-* We configured PostgreSQL to let it emit changes
-* We receive the changes by directly invoking the `pg_receiwal` binary and capturing its binary output
-* We decoded the binary output to `Message` instances by using `scodec`'s `Codec`
-* In the `Message.Insert` or `Message.Update` classes, we have access to the actual inserted (or updated) data by using the `TupleData` type which is actually a `List` of `Value`
-* Among others, a `Value` may be a `Value.Text` which contains some bytes which is actually the value
+#### Quick break
 
-No, we need to find a way to transform the `Value.Text` instances to what's expected in a case class
+Okay! Let's do a quick summary of what we've done so far:
+* We configured PostgreSQL to let it emit changes through its Logical Replication capability;
+* We receive the changes by directly invoking the `pg_recvlogical` binary and capturing its binary output;
+* We decoded the binary output to `Message` instances by using the appropriate `scodec`'s `Codec` instance;
+* In the `Message.Insert` or `Message.Update` classes, we have access to the actual values of the row through the `TupleData` type which is actually a `List` of `Value`s;
+* Among others, a `Value` may be a `Value.Text` containing bytes which represent the actual value stored in PostgreSQL.  
 
-We're able to obtain all kind of `Message`s that are emitted by PostgreSQL. But what about converting them to actual case classes?
+So what's remaining now is: how to convert a `Message.Inserted` instance to a custom case class that will the inserted row?
+
+#### The `ValueReader` typeclass
+
+First, we're going to define a `ValueReader[T]` typeclass which will have the role of trying to convert a `Value` to a `T`. 
+
+Technically speaking, it's a `trait` with a single `read` method that we'll have to call to do the conversion: 
+
+{{< highlight scala >}}
+
+[//]: # <<< value-reader-trait >>>
+
+{{< / highlight >}}
+
+As we said that `ValueReader[T]` is a typeclass, it requires some instances to work with. For our little project here, we're only going to be able to read `String`, `Long` and `Int`. 
+
+Creating a `ValueReader[String]` is quite straighforward: 
+
+{{< highlight scala >}}
+
+[//]: # <<< value-reader-for-string-instance >>>
+
+{{< / highlight >}}
+
+A `ValueReader[Double]` is not that much complicated:
+
+{{< highlight scala >}}
+
+[//]: # <<< value-reader-for-double-instance >>>
+
+{{< / highlight >}}
+
+Using the `ValueReader[T]` typeclass allow us to map a `Value` of a `TupleData` to a `T`, but it doesn't allow us to map an entire `TupleData` to something else.
+
+#### The `TupleDataReader` typeclass
+
+We're going to use the exact same strategy as above: we define a `TupleDataReader[T]` with a single `read` method which will take a `TupleData` instance and return an instance of `T`.  
+
+{{< highlight scala >}}
+
+[//]: # <<< tuple-data-reader-trait >>>
+
+{{< / highlight >}}
+
+Again, as it's a typeclass, it require some instances. 
+
+So for example, if we have a `Person` case class defined like this:
+
+{{< highlight scala >}}
+
+[//]: # <<< person-class >>>
+
+{{< / highlight >}}
+
+We can have a `TupleDataReader[Person]` instance like this:
+
+{{< highlight scala >}}
+
+[//]: # <<< tuple-data-reader-for-person-instance >>>
+
+{{< / highlight >}}
+
+But... Think about it: it's a shame that, for all the case classes, we have to define a `TupleDataReader` instance! If we know in advance the case class, is there a way to derive this instance automatically?
+
+
+#### The `shapeless` library to the rescue! 
+
+I think you already heard about the `shapeless` library. It allow a lot of stuff, but we'll focus on the HNil one. 
+
+Thanks to Shapeless, we can express a complex type as a heterogeneous list of types. So, _in terms of types_, the following `HPerson` type and `Person` case class are semanticaly equivalent:
+
+{{< highlight scala >}}
+
+type HPerson = String :: String :: HNil
+
+case class Person(firstName: String, lastName: String)
+
+{{< / highlight >}}
+
+The real power of `shapeless` is that it provide a bijection between the case classes world and the hetereogeneous list of types world by using the `Generic[T]` and its `from` and `to` method. 
+
+You may ask: "What is the point of having an heterogeneous list of types when you have case classes?" And that's a good question! 
+
+The fact of working with lists allow you to take advantage of one of its intrinsec property: recursivity. 
+
+
 
 ### Embedding everything under an `fs2`'s `Pipe`s
 

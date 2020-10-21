@@ -12,7 +12,7 @@ trait ValueReader[T] {
 
 }
 
-
+//<<< value-reader-object
 object ValueReader {
 
     def instance[T](f: Value => Try[T]): ValueReader[T] = new ValueReader[T] {
@@ -20,13 +20,13 @@ object ValueReader {
         override def read(value: Value): Try[T] = f(value)
 
     }
+//>>>
 
     def constant[T](c: T) = instance { _ => Try(c) }
 
     def apply[T](implicit valueReaderForT: ValueReader[T]) = valueReaderForT
 
 }
-
 
 trait ValueReaderInstances {
 

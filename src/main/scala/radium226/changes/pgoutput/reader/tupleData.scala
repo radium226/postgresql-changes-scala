@@ -5,13 +5,12 @@ import scala.util._
 import radium226.changes.pgoutput.protocol._
 import shapeless._
 
-
+///<< tuple-data-reader-trait
 trait TupleDataReader[T] {
 
     def read(tupleData: TupleData): Try[T]
 
 }
-
 
 object TupleDataReader {
 
@@ -26,6 +25,7 @@ object TupleDataReader {
     def apply[T](implicit tupleDataReaderForT: TupleDataReader[T]) = tupleDataReaderForT
 
 }
+///>>>
 
 
 trait TupleDataReaderInstances {
