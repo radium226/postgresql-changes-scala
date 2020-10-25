@@ -2,9 +2,8 @@
 CREATE TABLE
     persons (
         id SERIAL PRIMARY KEY,
-        firstName TEXT, 
-        lastName TEXT, 
-        tags TEXT ARRAY
+        first_name TEXT, 
+        last_name TEXT
     );
 
 ALTER TABLE persons REPLICA IDENTITY FULL;

@@ -10,7 +10,7 @@ SHELL = /usr/bin/env
 # https://github.com/debezium/postgres-decoderbufs/blob/master/README.md
 # vendors/debezium/debezium-connector-postgres/src/main/java/io/debezium/connector/postgresql/connection/pgoutput/PgOutputMessageDecoder.java
 
-include make/pg.mk
+include make/pg.mk make/samples.mk
 
 .PHONY: insert-random-persons
 insert-random-persons:
