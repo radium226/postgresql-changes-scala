@@ -23,6 +23,7 @@ object Main extends IOApp {
 
       Capture
         .capture[IO, Person](config)
+        .evalTap({ change => IO(println(change))})
         .collect({
           case Change.Insert(person) =>
             person

@@ -9,4 +9,6 @@ object Change {
 
     case class Update[T](oldValue: T, newValue: T) extends Change[T]
 
+    case class Delete[T](oldValue: T) extends Change[T]
+
 }

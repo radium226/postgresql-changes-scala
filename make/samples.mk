@@ -1,7 +1,7 @@
 .PHONY: samples
 samples: src/test/resources/INSERT.bin src/test/resources/UPDATE.bin src/test/resources/DELETE.bin
 
-src/test/resources/INSERT.bin: 
+src/test/resources/INSERT.bin:
 	mkdir -p "src/test/resources"
 	make/bin/capture-change.py \
 		--change-file="src/test/resources/INSERT.bin" \
@@ -18,7 +18,8 @@ src/test/resources/INSERT.bin:
 				:new_last_name
 			)"
 	
-src/test/resources/UPDATE.bin: src/test/resources/INSERT.bin
+src/test/resources/UPDATE.bin:
+	mkdir -p "src/test/resources"
 	make/bin/capture-change.py \
 		--change-file="src/test/resources/UPDATE.bin" \
 		-v old_last_name="Einstein" \
@@ -33,10 +34,11 @@ src/test/resources/UPDATE.bin: src/test/resources/INSERT.bin
 			WHERE
 				last_name=:old_last_name"
 
-src/test/resources/DELETE.bin: src/test/resources/UPDATE.bin
+src/test/resources/DELETE.bin:
+	mkdir -p "src/test/resources"
 	make/bin/capture-change.py \
 		--change-file="src/test/resources/DELETE.bin" \
-		-v old_last_name="Einstein" \
+		-v old_last_name="Bohr" \
 		-- \
 			"DELETE FROM 
 				persons 

@@ -95,6 +95,11 @@ package object codec {
     }.as[Message.Insert]
 //>>>
 
+    val delete: Codec[Message.Delete] = {
+        ("relationId" | int32) ::
+        ("submessage" | submessage)
+    }.as[Message.Delete]
+
     val column: Codec[Column] = {
         ("flags" | int8) ::
         ("name" | cstring) ::
@@ -117,6 +122,7 @@ package object codec {
             .typecase('C', commit)
             .typecase('I', insert)
             .typecase('U', update)
+            .typecase('D', delete)
             .typecase('R', relation)
     }
 //>>

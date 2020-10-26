@@ -62,6 +62,7 @@ class Postgres:
             while call(["pg_isready"] + self.connection_args) != 0:
                 print("Waiting for PostgreSQL to be ready... ")
                 sleep(1)
+            sleep(10)
             yield
         finally:
             process.terminate()
@@ -81,33 +82,41 @@ class Postgres:
 
     @contextmanager
     def capture(self, slot, publication_name, change_file_path):
-        pg_recvlogical_replication_args = [
-            f"--slot={slot}",
-            f"--file={str(change_file_path)}",
-            "--no-loop",
-            "--option=proto_version=1",
-            f"--option=publication_names={publication_name}",
-            "--plugin=pgoutput",
-            "--start"
-        ]
-        pg_recvlogical_args = self.connection_args + pg_recvlogical_replication_args
-        pg_recvlogical_command = ["pg_recvlogical"] + pg_recvlogical_args
-        print(pg_recvlogical_command)
-        pg_recvlogical_process = Popen(pg_recvlogical_command)
-        # Just wait a little
-        sleep(1)
-        try:
-            yield
-        finally:
-            pg_recvlogical_process.terminate()
-            pg_recvlogical_process.wait()
+        with change_file_path.open("bw") as fd:
+            pg_recvlogical_replication_args = [
+                f"--slot={slot}",
+                "--status-interval=1",
+                "--fsync-interval=1",
+                f"--file=-",
+                "--verbose",
+                "--no-loop",
+                "--option=proto_version=1",
+                f"--option=publication_names={publication_name}",
+                "--plugin=pgoutput",
+                "--start"
+            ]
+            pg_recvlogical_args = self.connection_args + pg_recvlogical_replication_args
+            pg_recvlogical_command = ["pg_recvlogical"] + pg_recvlogical_args
+            print(pg_recvlogical_command)
+            pg_recvlogical_process = Popen(pg_recvlogical_command, stdout=fd)
+            # Just wait a little for pg_recvlogical to start up
+            sleep(1)
+            try:
+                yield
+            finally:
+                pg_recvlogical_process.terminate()
+                pg_recvlogical_process.wait()
 
-def main(config, slot, publication_name, change_file_path, query, variables):
+def main(config, slot, publication_name, change_file_path, queries, variables):
     postgres = Postgres(config)
     with postgres.server():
         with postgres.capture(slot, publication_name, change_file_path):
-                postgres.execute(query, **variables)
-                sleep(1)
+            if queries:
+                for query in queries:
+                    postgres.execute(query, **variables)
+                    sleep(10)
+            else:
+                sleep(10)
 
 
 
@@ -121,8 +130,8 @@ if __name__ == "__main__":
     argument_parser.add_argument("--slot", metavar="SLOT", help="Number of slots", default="my_slot")
     argument_parser.add_argument("--publication-name", metavar="PUBLICATION_NAME", help="Publication names", default="my_publication")
     argument_parser.add_argument("--change-file", dest="change_file", metavar="CHANGE_FILE", help="Change file", default="pgoutput.bin")
-    argument_parser.add_argument("-v", dest="variables", metavar="KEY=VALUE", action="append", help="Query variables")
-    argument_parser.add_argument("query", help="Query")
+    argument_parser.add_argument("-v", dest="variables", metavar="KEY=VALUE", action="append", help="Query variables", default=[])
+    argument_parser.add_argument("queries", nargs="*", help="Queries", default=[])
     
     args = argument_parser.parse_args()
     print(args)
@@ -147,4 +156,4 @@ if __name__ == "__main__":
     variables = parse_variables(args.variables)
     print(variables)
     
-    main(config, args.slot, args.publication_name, Path(args.change_file), args.query, variables)
+    main(config, args.slot, args.publication_name, Path(args.change_file), args.queries, variables)

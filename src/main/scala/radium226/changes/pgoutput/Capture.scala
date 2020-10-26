@@ -1,19 +1,15 @@
 package radium226.changes.pgoutput
 
-import cats.effect.{Blocker, ContextShift, Sync}
-
+import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
 import radium226.changes.Change
 import radium226.changes.pgoutput.protocol.{Message, Submessage}
 import radium226.changes.pgoutput.reader.TupleDataReader
 import radium226.changes.pgoutput.protocol.codec.{message => messageCodec}
-
 import fs2._
 import fs2.io.readInputStream
-
 import scodec.{Attempt, DecodeResult}
 import scodec.Err.{General, InsufficientBits}
 import scodec.bits.BitVector
-
 import cats.implicits._
 
 
@@ -79,7 +75,19 @@ object Capture {
               Stream.emit[F, Change[T]](update)
             })
 
-        case Message.Update(_, _, _) =>
+        case Message.Delete(_, Submessage.Old(oldTupleData)) =>
+          tupleDataReaderForT
+            .read(oldTupleData)
+            .map({ oldValue =>
+              Change.Delete[T](oldValue)
+            })
+            .fold({ throwable =>
+              Stream.raiseError[F](throwable)
+            }, { insert =>
+              Stream.emit[F, Change[T]](insert)
+            })
+
+        case Message.Update(_, _, _) | Message.Delete(_, _) =>
           Stream.raiseError[F](new Exception("You should configure your table with REPLICAS FULL"))
 
         case _ =>
@@ -88,7 +96,7 @@ object Capture {
   }
 
 //<<< receive-method
-  def receive[F[_]: Sync: ContextShift](config: CaptureConfig): Stream[F, Byte] = {
+  def receive[F[_]: Sync: ContextShift: Concurrent](config: CaptureConfig): Stream[F, Byte] = {
     (for {
       blocker <- Stream.resource[F, Blocker](Blocker[F])
       process <- Stream.bracket[F, Process](F.delay({
@@ -99,8 +107,11 @@ object Capture {
             "-h", s"${config.host}",
             "-p", s"${config.port}",
             s"--slot=${config.slot}",
+            "--status-interval=1",
+            "--fsync-interval=1",
             "--file=-",
             "--no-loop",
+            "-v",
             "--option=proto_version=1",
             s"--option=publication_names=${config.publications.mkString(",")}",
             "--plugin=pgoutput",
@@ -111,11 +122,13 @@ object Capture {
       })
     } yield (blocker, process)).flatMap({ case (blocker, process) =>
       readInputStream(F.delay(process.getInputStream), 512, blocker)
+        .observe(_.through(text.utf8Decode).showLines(System.out))
+        .concurrently(readInputStream(F.delay(process.getErrorStream), 512, blocker).through(text.utf8Decode).showLines(System.err))
     })
   }
 //>>>
 
-  def capture[F[_]: Sync: ContextShift, T: TupleDataReader](config: CaptureConfig): Stream[F, Change[T]] = {
+  def capture[F[_]: Sync: ContextShift: Concurrent, T: TupleDataReader](config: CaptureConfig): Stream[F, Change[T]] = {
     receive[F](config)
       .through(messages[F])
       .through(changes[F, T])

@@ -20,6 +20,8 @@ object Message {
 
     case class Update(relationID: RelationID, submessage: Submessage, newTupleData: TupleData) extends Message
 
+    case class Delete(relationId: RelationID, submessage: Submessage) extends Message
+
     case class Relation(id: RelationID, namespace: String, name: String, replicaIdentitySetting: Int, columns: List[Column]) extends Message
 
 }
