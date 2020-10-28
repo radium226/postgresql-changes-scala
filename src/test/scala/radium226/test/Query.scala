@@ -1,7 +1,5 @@
 package radium226.test
 
-import radium226.test.{SQL, Variable}
-
 case class Query(sql: SQL, variables: List[Variable]) {
 
   def withVariables(variables: Variable*): Query = {
@@ -9,7 +7,6 @@ case class Query(sql: SQL, variables: List[Variable]) {
   }
 
 }
-
 
 object Query {
 
