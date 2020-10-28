@@ -30,7 +30,11 @@ lazy val root = (project in file("."))
     } yield fs2 exclude(cats.organization, cats.name)),
     // scala-test
     libraryDependencies ++= Dependencies.scalaTest map { _ % Test },
-    // slf4j
+    libraryDependencies += "com.codecommit" %% "cats-effect-testing-scalatest" % "0.4.1" % Test,
+    libraryDependencies += "com.github.javafaker" % "javafaker" % "1.0.2" % Test,
+    libraryDependencies += "com.google.guava" % "guava" % "30.0-jre" % Test,
+
+      // slf4j
     libraryDependencies ++= Dependencies.slf4j,
     // scodec
     libraryDependencies ++= Dependencies.scodec,

@@ -1,11 +1,11 @@
 package radium226.changes.pgoutput
 
-import radium226.changes.AbstractSpec
 import radium226.changes.pgoutput.protocol.{Message, codec}
 import org.scalatest.Inspectors._
+import radium226.test.{AbstractSpec, Protocol}
 
 
-class ProtocolSpec extends AbstractSpec {
+class ProtocolSpec extends AbstractSpec with Protocol {
 
   "All statements" should "begin with a Begin message and end with a Commit message" in forAll(List("INSERT", "UPDATE", "DELETE")) { statement =>
     withResource(s"${statement}.bin") { lines =>

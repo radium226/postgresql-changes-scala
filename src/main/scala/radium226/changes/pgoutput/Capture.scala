@@ -2,7 +2,7 @@ package radium226.changes.pgoutput
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
 import radium226.changes.Change
-import radium226.changes.pgoutput.protocol.{Message, Submessage}
+import radium226.changes.pgoutput.protocol.{Message, Submessage, TransactionID}
 import radium226.changes.pgoutput.reader.TupleDataReader
 import radium226.changes.pgoutput.protocol.codec.{message => messageCodec}
 import fs2._
@@ -128,10 +128,71 @@ object Capture {
   }
 //>>>
 
-  def capture[F[_]: Sync: ContextShift: Concurrent, T: TupleDataReader](config: CaptureConfig): Stream[F, Change[T]] = {
+  def captureChanges[F[_]: Sync: ContextShift: Concurrent, T: TupleDataReader](config: CaptureConfig): Stream[F, Change[T]] = {
     receive[F](config)
       .through(messages[F])
       .through(changes[F, T])
+  }
+
+  def captureTransactions[F[_]: Sync: ContextShift: Concurrent](config: CaptureConfig) = {
+    receive[F](config)
+      .through(messages[F])
+      .through(transactions[F])
+  }
+
+  case class Transaction(id: TransactionID, messages: List[Message]) {
+
+    def isEmpty: Boolean = messages.isEmpty
+
+    def :+(message: Message): Transaction = copy(messages = messages :+ message)
+
+  }
+
+  object Transaction {
+
+    def empty(transactionID: TransactionID): Transaction = Transaction(transactionID, List.empty)
+
+  }
+
+  def transactions[F[_]: RaiseThrowable]: Pipe[F, Message, Transaction] = { messageStream =>
+    def go(messageStream: Stream[F, Message], transactionOption: Option[Transaction]): Pull[F, Transaction, Unit] = {
+      messageStream.pull.uncons1.flatMap({
+        case Some((Message.Begin(_, _, transactionID), remainingMessageStream)) =>
+          transactionOption match {
+            case Some(_) =>
+              Pull.raiseError(new Exception("A transaction is already in progress! "))
+
+            case None =>
+              go(remainingMessageStream, Transaction.empty(transactionID).some)
+          }
+
+        case Some((Message.Commit(_, _, _), remainingMessageStream)) =>
+          transactionOption match {
+            case Some(transaction) =>
+              for {
+                _ <- Pull.output1(transaction)
+                _ <- go(remainingMessageStream, none[Transaction])
+              } yield ()
+
+            case None =>
+              Pull.raiseError(new Exception("There is no transaction in progress"))
+          }
+
+        case Some((message, remainingMessageStream)) =>
+          transactionOption match {
+            case Some(transaction) =>
+              go(remainingMessageStream, (transaction :+ message).some)
+
+            case None =>
+              Pull.raiseError(new Exception("There is no transaction in progress"))
+          }
+
+        case None =>
+          Pull.done
+      })
+    }
+
+    go(messageStream, none[Transaction]).stream
   }
 
 }
