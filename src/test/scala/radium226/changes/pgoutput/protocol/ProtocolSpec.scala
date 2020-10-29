@@ -1,6 +1,5 @@
-package radium226.changes.pgoutput
+package radium226.changes.pgoutput.protocol
 
-import radium226.changes.pgoutput.protocol.{Message, codec}
 import org.scalatest.Inspectors._
 import radium226.test.{AbstractSpec, Protocol}
 

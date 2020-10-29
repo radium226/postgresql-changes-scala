@@ -22,7 +22,7 @@ object Message {
 
     case class Delete(relationId: RelationID, submessage: Submessage) extends Message
 
-    case class Relation(id: RelationID, namespace: String, name: String, replicaIdentitySetting: Int, columns: List[Column]) extends Message
+    case class Relation(id: RelationID, namespace: RelationNamespace, name: RelationName, replicaIdentitySetting: Int, columns: List[Column]) extends Message
 
 }
 //>>>

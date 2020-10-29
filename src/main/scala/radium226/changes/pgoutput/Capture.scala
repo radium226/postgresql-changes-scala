@@ -2,7 +2,7 @@ package radium226.changes.pgoutput
 
 import cats.effect.{Blocker, Concurrent, ContextShift, Sync}
 import radium226.changes.Change
-import radium226.changes.pgoutput.protocol.{Message, Submessage, TransactionID}
+import radium226.changes.pgoutput.protocol.{Message, RelationID, RelationName, Submessage, TransactionID}
 import radium226.changes.pgoutput.reader.TupleDataReader
 import radium226.changes.pgoutput.protocol.codec.{message => messageCodec}
 import fs2._
@@ -11,6 +11,8 @@ import scodec.{Attempt, DecodeResult}
 import scodec.Err.{General, InsufficientBits}
 import scodec.bits.BitVector
 import cats.implicits._
+
+import scala.util.{Failure, Success}
 
 
 object Capture {
@@ -115,6 +117,8 @@ object Capture {
             "--option=proto_version=1",
             s"--option=publication_names=${config.publications.mkString(",")}",
             "--plugin=pgoutput",
+            "--create",
+            "--if-not-exists",
             "--start")
           .start()
       }))({ process =>
@@ -122,7 +126,6 @@ object Capture {
       })
     } yield (blocker, process)).flatMap({ case (blocker, process) =>
       readInputStream(F.delay(process.getInputStream), 512, blocker)
-        .observe(_.through(text.utf8Decode).showLines(System.out))
         .concurrently(readInputStream(F.delay(process.getErrorStream), 512, blocker).through(text.utf8Decode).showLines(System.err))
     })
   }
@@ -134,28 +137,18 @@ object Capture {
       .through(changes[F, T])
   }
 
-  def captureTransactions[F[_]: Sync: ContextShift: Concurrent](config: CaptureConfig) = {
+  def captureTransactions[F[_]: Sync: ContextShift: Concurrent](config: CaptureConfig, tupleDataReadersByRelationName: Map[RelationName, TupleDataReader[_]]) = {
     receive[F](config)
       .through(messages[F])
-      .through(transactions[F])
+      .through(transactions[F](tupleDataReadersByRelationName))
   }
 
-  case class Transaction(id: TransactionID, messages: List[Message]) {
-
-    def isEmpty: Boolean = messages.isEmpty
-
-    def :+(message: Message): Transaction = copy(messages = messages :+ message)
-
+  def captureMessages[F[_]: Sync: ContextShift: Concurrent](config: CaptureConfig): Stream[F, Message] = {
+    receive[F](config).through(messages[F])
   }
 
-  object Transaction {
-
-    def empty(transactionID: TransactionID): Transaction = Transaction(transactionID, List.empty)
-
-  }
-
-  def transactions[F[_]: RaiseThrowable]: Pipe[F, Message, Transaction] = { messageStream =>
-    def go(messageStream: Stream[F, Message], transactionOption: Option[Transaction]): Pull[F, Transaction, Unit] = {
+  def transactions[F[_]: RaiseThrowable](tupleDataReadersByRelationName: Map[RelationName, TupleDataReader[_]]): Pipe[F, Message, Transaction] = { messageStream =>
+    def go(messageStream: Stream[F, Message], relations: List[Message.Relation], transactionOption: Option[Transaction]): Pull[F, Transaction, Unit] = {
       messageStream.pull.uncons1.flatMap({
         case Some((Message.Begin(_, _, transactionID), remainingMessageStream)) =>
           transactionOption match {
@@ -163,7 +156,7 @@ object Capture {
               Pull.raiseError(new Exception("A transaction is already in progress! "))
 
             case None =>
-              go(remainingMessageStream, Transaction.empty(transactionID).some)
+              go(remainingMessageStream, relations, Transaction.empty(transactionID).some)
           }
 
         case Some((Message.Commit(_, _, _), remainingMessageStream)) =>
@@ -171,17 +164,59 @@ object Capture {
             case Some(transaction) =>
               for {
                 _ <- Pull.output1(transaction)
-                _ <- go(remainingMessageStream, none[Transaction])
+                _ <- go(remainingMessageStream, relations, none[Transaction])
               } yield ()
 
             case None =>
               Pull.raiseError(new Exception("There is no transaction in progress"))
           }
 
-        case Some((message, remainingMessageStream)) =>
+        case Some((relation @ Message.Relation(_, _, _, _, _), remainingMessageStream)) =>
+          go(remainingMessageStream, relations :+ relation, transactionOption)
+
+        case Some((message @ RelationID(relationID), remainingMessageStream)) =>
           transactionOption match {
             case Some(transaction) =>
-              go(remainingMessageStream, (transaction :+ message).some)
+              (for {
+                relation        <- relations.find(_.id == relationID)
+                relationName     = relation.name
+                tupleDataReader <- tupleDataReadersByRelationName.get(relationName)
+              } yield tupleDataReader) match {
+                case Some(tupleDataReader) =>
+                  (message match {
+                    case Message.Insert(_, newTupleData) =>
+                      tupleDataReader
+                        .read(newTupleData)
+                        .map({ newValue =>
+                          Change.Insert(newValue)
+                        })
+
+                    case Message.Update(_, Submessage.Old(oldTupleData), newTupleData) =>
+                      for {
+                        oldValue <- tupleDataReader.read(oldTupleData)
+                        newValue <- tupleDataReader.read(newTupleData)
+                      } yield Change.Update(oldValue, newValue)
+
+                    case Message.Delete(_, Submessage.Old(oldTupleData)) =>
+                      tupleDataReader
+                        .read(oldTupleData)
+                        .map({ oldValue =>
+                          Change.Delete(oldValue)
+                        })
+
+                    case _ =>
+                      Failure(new Exception("You should be configure your table with REPLICA FULL"))
+                  }) match {
+                    case Success(change) =>
+                      go(remainingMessageStream, relations, (transaction :+ change).some)
+
+                    case Failure(throwable) =>
+                      Pull.raiseError(throwable)
+                  }
+
+                case None =>
+                  Pull.raiseError(new Exception(s"Unable to find a tupleDataReader for the ${relationID} relation ID"))
+              }
 
             case None =>
               Pull.raiseError(new Exception("There is no transaction in progress"))
@@ -192,7 +227,7 @@ object Capture {
       })
     }
 
-    go(messageStream, none[Transaction]).stream
+    go(messageStream, List.empty[Message.Relation], none[Transaction]).stream
   }
 
 }

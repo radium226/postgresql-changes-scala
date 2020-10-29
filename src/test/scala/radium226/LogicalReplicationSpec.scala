@@ -1,33 +1,16 @@
-package radium226.changes
+package radium226
+
+import java.util.{Random => JavaRandom}
 
 import cats.effect.IO
 import com.github.javafaker.Faker
-import radium226.test.Query
-import java.util.{Random => JavaRandom}
-
-import radium226.test.{AbstractSpec, Postgres, PostgresConfig}
+import radium226.test.{AbstractSpec, Postgres, PostgresConfig, Queries, Query}
 
 import scala.concurrent.duration._
 
-class LogicalReplicationSpec extends AbstractSpec with Postgres {
+class LogicalReplicationSpec extends AbstractSpec with Postgres with Queries {
 
   implicit val faker: Faker = Faker.instance(new JavaRandom(42L))
-
-  val CreatePersonsTableQuery = Query(
-    """CREATE TABLE
-      |  persons(
-      |    id SERIAL PRIMARY KEY,
-      |    first_name TEXT,
-      |    last_name TEXT
-      |  );""".stripMargin
-  )
-
-  val CreateReplicationQuery = Query(
-    """CREATE PUBLICATION
-      |  example_publication
-      |FOR
-      |  ALL TABLES;""".stripMargin
-  )
 
   val InsertIntoPersonsQuery = Query(
     """INSERT INTO
@@ -51,11 +34,6 @@ class LogicalReplicationSpec extends AbstractSpec with Postgres {
       _ <- insertPersons
     } yield ()
   }
-
-  val InitQueries = List(
-    CreatePersonsTableQuery,
-    CreateReplicationQuery
-  )
 
   "Logical replication" should "emit binary stream when changes occur in Postgres" in runIO(postgres(InitQueries).use({ implicit postgresConfig =>
     duringIO(insertPersons) {

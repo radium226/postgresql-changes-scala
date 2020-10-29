@@ -1,12 +1,13 @@
 package radium226.test
 
 import cats.effect.{ContextShift, IO, Timer}
-import org.scalatest.Assertion
+import org.scalatest.{Assertion, Assertions}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 trait RunIO {
+  self: Assertions =>
 
   implicit val executionContext: ExecutionContext = ExecutionContext.global
 
@@ -23,9 +24,16 @@ trait RunIO {
   }
 
   def runIO(program: IO[Assertion], timeoutDuration: FiniteDuration = 10 seconds): Assertion = {
-    program
+    val assertion = program
       .timeout(timeoutDuration)
+      .redeem({ throwable =>
+        fail(throwable)
+      }, identity)
       .unsafeRunSync()
+
+    println(assertion)
+
+    assertion
   }
 
 }
