@@ -113,7 +113,7 @@ trait Postgres {
           .inheritIO()
           .start()
       ))({ process =>
-        IO(process.destroy())
+        IO(process.destroy()) *> IO(process.waitFor()).void
       })
 
     def waitFor(): IO[Unit] = {
